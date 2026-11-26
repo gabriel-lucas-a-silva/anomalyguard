@@ -1,0 +1,59 @@
+name: anomalyguard-v2
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: ag2-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    restart: unless-stopped
+    networks: [ag2]
+
+  backend:
+    build:
+      context: ./backend
+      target: runtime
+    image: anomalyguard-v2-backend:dev
+    container_name: ag2-backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      AG_DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      AG_PROMETHEUS_URL: ${AG_PROMETHEUS_URL:-http://prometheus:9090}
+      AG_OPENSEARCH_URL: ${AG_OPENSEARCH_URL:-http://opensearch:9200}
+      AG_WEBHOOK_TOKEN: ${AG_WEBHOOK_TOKEN}
+      AG_GEMINI_API_KEY: ${AG_GEMINI_API_KEY:-}
+      AG_DEMO_MODE: ${AG_DEMO_MODE:-false}
+      AG_FLAGD_UI_URL: ${AG_FLAGD_UI_URL:-http://flagd-ui:4000}
+    ports:
+      - "127.0.0.1:${BACKEND_PORT:-8100}:8000"
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+    restart: unless-stopped
+    networks: [ag2, demo]
+
+volumes:
+  postgres-data:
+
+networks:
+  ag2:
+    name: anomalyguard-v2
+  demo:
+    name: opentelemetry-demo
+    external: true

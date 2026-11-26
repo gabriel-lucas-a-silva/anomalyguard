@@ -1,0 +1,32 @@
+groups:
+  - name: anomalyguard-frontend
+    interval: 15s
+    rules:
+      - alert: FrontendHighErrorRate
+        expr: |
+          sum(rate(http_server_request_duration_seconds_count{service_name="frontend",http_response_status_code=~"[45].."}[2m])) > 0.01
+        for: 1m
+        labels:
+          severity: critical
+          service: frontend
+        annotations:
+          summary: "O frontend está devolvendo erros (4xx ou 5xx) a mais de 0,6 por minuto"
+          export_interval_s: "60"
+          eval_interval_s: "15"
+          rate_window_s: "120"
+          for_s: "60"
+      - alert: ProductCatalogHighLatency
+        expr: |
+          histogram_quantile(0.90,
+            sum by (le) (rate(traces_span_metrics_duration_milliseconds_bucket{service_name="product-catalog"}[2m])))
+          > 1000
+        for: 1m
+        labels:
+          severity: critical
+          service: product-catalog
+        annotations:
+          summary: "O catálogo de produtos está lento: a latência p90 dele passou de 1 segundo"
+          export_interval_s: "60"
+          eval_interval_s: "15"
+          rate_window_s: "120"
+          for_s: "60"
